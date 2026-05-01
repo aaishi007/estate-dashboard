@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estate Performance Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+  padding: 20px;
+}
+.container { max-width: 1400px; margin: 0 auto; }
+.header { text-align: center; margin-bottom: 24px; }
+.title {
+  font-size: 2rem; font-weight: 700;
+  background: linear-gradient(90deg, #60a5fa, #a855f7, #ec4899);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+}
+.subtitle { color: #94a3b8; font-size: 0.95rem; }
+.panel {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+.ctrl-group { display: flex; flex-direction: column; }
+.ctrl-label {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #94a3b8; margin-bottom: 6px; font-weight: 600;
+}
+select {
+  background: #0f172a;
+  color: white;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 0.9rem;
+  outline: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+select:focus { border-color: #3b82f6; }
+.insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.insight {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 14px;
+}
+.insight-label {
+  font-size: 0.7rem; text-transform: uppercase;
+  color: #94a3b8; margin-bottom: 6px;
+}
+.insight-value { font-size: 1.5rem; font-weight: 700; }
+.insight-detail { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 1024px) {
+  .main-grid { grid-template-columns: 1fr; }
+}
+.panel-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th {
+  text-align: left; padding: 8px;
+  color: #94a3b8; font-weight: 500;
+  border-bottom: 1px solid #475569;
+}
+th.center { text-align: center; }
+td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #334155;
+  text-align: center;
+}
+td.estate-col { text-align: left; font-weight: 600; }
+tr:hover { background: rgba(51, 65, 85, 0.3); }
+.wentworth { color: #f59e0b; }
+.prod-val { font-weight: 700; font-size: 0.95rem; color: white; }
+.rain-val { font-size: 0.7rem; margin-top: 2px; }
+.rain-low { color: #fbbf24; }
+.rain-moderate { color: #60a5fa; }
+.rain-high { color: #3b82f6; }
+.rain-very-high { color: #93c5fd; }
+.rain-na { color: #475569; }
+.no-data { color: #475569; }
+.legend {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 12px; font-size: 0.7rem;
+}
+.legend-item { padding: 3px 8px; border-radius: 4px; }
+.chart-wrap { position: relative; height: 380px; width: 100%; }
+.corr-info {
+  margin-top: 10px; padding: 10px;
+  background: #0f172a; border-radius: 6px; font-size: 0.85rem;
+}
+.green { color: #10b981; }
+.red { color: #ef4444; }
+.yellow { color: #f59e0b; }
+.blue { color: #3b82f6; }
+.gray { color: #64748b; }
+.footer { text-align: center; font-size: 0.75rem; color: #64748b; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1 class="title">Estate Performance Dashboard</h1>
+    <p class="subtitle">Month-on-Month, Year-on-Year Comparison with Rainfall</p>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="ctrl-group">
+        <label class="ctrl-label">Month</label>
+        <select id="monthSelect"></select>
+      </div>
+      <div class="ctrl-group">
+        <label class="ctrl-label">Estate</label>
+        <select id="estateSelect"></select>
+      </div>
+      <div class="ctrl-group">
+        <label class="ctrl-label">View Mode</label>
+        <select id="viewSelect">
+          <option value="comparison">Year Comparison (Bar)</option>
+          <option value="trends">Year Trends (Line)</option>
+          <option value="correlation">Rainfall vs Productivity</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="insights" id="insightsContainer"></div>
+
+  <div class="main-grid">
+    <div class="panel">
+      <h3 class="panel-title" id="tableTitle">Performance Comparison</h3>
+      <div id="tableContainer"></div>
+      <div class="legend">
+        <span class="gray">Rainfall:</span>
+        <span class="legend-item rain-low" style="background:#fbbf2422">Low (&lt;5cm)</span>
+        <span class="legend-item rain-moderate" style="background:#60a5fa22">Moderate (5-20cm)</span>
+        <span class="legend-item rain-high" style="background:#3b82f622">High (20-40cm)</span>
+        <span class="legend-item rain-very-high" style="background:#93c5fd22">Very High (&gt;40cm)</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 class="panel-title" id="chartTitle">Productivity by Year</h3>
+      <div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+      <div id="corrInfo"></div>
+    </div>
+  </div>
+
+  <div class="footer" id="footer"></div>
+</div>
+
+<script>
+const ALL_DATA = [{"estate":"Attikunna","month":"May","year":2023,"productivity":353.0,"rainfall":12.9},{"estate":"Carolyn","month":"May","year":2023,"productivity":301.0,"rainfall":15.1},{"estate":"Rockwood","month":"May","year":2023,"productivity":308.0,"rainfall":15.3},{"estate":"Rousdonmullai","month":"May","year":2023,"productivity":234.0,"rainfall":25.1},{"estate":"Sussex","month":"May","year":2023,"productivity":217.0,"rainfall":18.1},{"estate":"Wentworth","month":"May","year":2023,"productivity":146.0,"rainfall":9.1},{"estate":"Mayfield","month":"May","year":2023,"productivity":182.0,"rainfall":6.8},{"estate":"Woodbriar","month":"May","year":2023,"productivity":134.0,"rainfall":11.9},{"estate":"Attikunna","month":"March","year":2026,"productivity":280.0,"rainfall":1.9},{"estate":"Carolyn","month":"March","year":2026,"productivity":239.0,"rainfall":0.2},{"estate":"Rousdonmullai","month":"March","year":2026,"productivity":187.0,"rainfall":2.0},{"estate":"Sussex","month":"March","year":2026,"productivity":153.0,"rainfall":0.6},{"estate":"Rockwood","month":"March","year":2026,"productivity":149.0,"rainfall":0.6},{"estate":"Wentworth","month":"March","year":2026,"productivity":127.0,"rainfall":1.6},{"estate":"Woodbriar","month":"March","year":2026,"productivity":83.0,"rainfall":1.4},{"estate":"Mayfield","month":"March","year":2026,"productivity":100.0,"rainfall":0.8},{"estate":"Attikunna","month":"December","year":2025,"productivity":219.0,"rainfall":0.0},{"estate":"Carolyn","month":"December","year":2025,"productivity":194.0,"rainfall":0.0},{"estate":"Rousdonmullai","month":"December","year":2025,"productivity":195.0,"rainfall":0.3},{"estate":"Wentworth","month":"December","year":2025,"productivity":112.0,"rainfall":3.1},{"estate":"Mayfield","month":"December","year":2025,"productivity":111.0,"rainfall":0.0},{"estate":"Sussex","month":"December","year":2025,"productivity":119.0,"rainfall":13.3},{"estate":"Rockwood","month":"December","year":2025,"productivity":141.0,"rainfall":0.0},{"estate":"Woodbriar","month":"December","year":2025,"productivity":87.0,"rainfall":0.0},{"estate":"Attikunna","month":"March","year":2025,"productivity":290.0,"rainfall":7.5},{"estate":"Carolyn","month":"March","year":2025,"productivity":255.0,"rainfall":11.1},{"estate":"Rousdonmullai","month":"March","year":2025,"productivity":195.0,"rainfall":6.5},{"estate":"Sussex","month":"March","year":2025,"productivity":141.0,"rainfall":3.6},{"estate":"Rockwood","month":"March","year":2025,"productivity":124.0,"rainfall":4.1},{"estate":"Wentworth","month":"March","year":2025,"productivity":125.0,"rainfall":8.8},{"estate":"Woodbriar","month":"March","year":2025,"productivity":91.0,"rainfall":5.5},{"estate":"Mayfield","month":"March","year":2025,"productivity":85.0,"rainfall":5.3},{"estate":"Attikunna","month":"May","year":2024,"productivity":199.0,"rainfall":33.3},{"estate":"Carolyn","month":"May","year":2024,"productivity":170.0,"rainfall":27.1},{"estate":"Rockwood","month":"May","year":2024,"productivity":97.0,"rainfall":27.6},{"estate":"Rousdonmullai","month":"May","year":2024,"productivity":92.0,"rainfall":39.7},{"estate":"Wentworth","month":"May","year":2024,"productivity":90.0,"rainfall":22.7},{"estate":"Sussex","month":"May","year":2024,"productivity":124.0,"rainfall":33.1},{"estate":"Mayfield","month":"May","year":2024,"productivity":83.0,"rainfall":41.7},{"estate":"Woodbriar","month":"May","year":2024,"productivity":36.0,"rainfall":27.9},{"estate":"Attikunna","month":"November","year":2023,"productivity":292.0,"rainfall":16.2},{"estate":"Rockwood","month":"November","year":2023,"productivity":310.0,"rainfall":20.3},{"estate":"Carolyn","month":"November","year":2023,"productivity":290.0,"rainfall":20.0},{"estate":"Rousdonmullai","month":"November","year":2023,"productivity":269.0,"rainfall":13.8},{"estate":"Sussex","month":"November","year":2023,"productivity":250.0,"rainfall":19.4},{"estate":"Wentworth","month":"November","year":2023,"productivity":286.0,"rainfall":19.4},{"estate":"Mayfield","month":"November","year":2023,"productivity":226.0,"rainfall":15.2},{"estate":"Woodbriar","month":"November","year":2023,"productivity":200.0,"rainfall":17.2},{"estate":"Attikunna","month":"October","year":2024,"productivity":338.0,"rainfall":25.9},{"estate":"Carolyn","month":"October","year":2024,"productivity":316.0,"rainfall":26.5},{"estate":"Wentworth","month":"October","year":2024,"productivity":190.0,"rainfall":34.5},{"estate":"Rockwood","month":"October","year":2024,"productivity":217.0,"rainfall":22.8},{"estate":"Sussex","month":"October","year":2024,"productivity":186.0,"rainfall":26.8},{"estate":"Rousdonmullai","month":"October","year":2024,"productivity":214.0,"rainfall":43.5},{"estate":"Mayfield","month":"October","year":2024,"productivity":157.0,"rainfall":17.2},{"estate":"Woodbriar","month":"October","year":2024,"productivity":123.0,"rainfall":18.9},{"estate":"Attikunna","month":"August","year":2025,"productivity":134.0,"rainfall":49.9},{"estate":"Carolyn","month":"August","year":2025,"productivity":120.0,"rainfall":50.5},{"estate":"Rousdonmullai","month":"August","year":2025,"productivity":63.0,"rainfall":103.9},{"estate":"Wentworth","month":"August","year":2025,"productivity":62.0,"rainfall":41.5},{"estate":"Mayfield","month":"August","year":2025,"productivity":81.0,"rainfall":24.1},{"estate":"Sussex","month":"August","year":2025,"productivity":144.0,"rainfall":29.3},{"estate":"Rockwood","month":"August","year":2025,"productivity":88.0,"rainfall":33.0},{"estate":"Woodbriar","month":"August","year":2025,"productivity":49.0,"rainfall":32.3},{"estate":"Attikunna","month":"January","year":2024,"productivity":307.0,"rainfall":4.0},{"estate":"Carolyn","month":"January","year":2024,"productivity":276.0,"rainfall":2.3},{"estate":"Wentworth","month":"January","year":2024,"productivity":224.0,"rainfall":2.2},{"estate":"Rockwood","month":"January","year":2024,"productivity":221.0,"rainfall":3.2},{"estate":"Rousdonmullai","month":"January","year":2024,"productivity":221.0,"rainfall":2.2},{"estate":"Sussex","month":"January","year":2024,"productivity":170.0,"rainfall":2.0},{"estate":"Mayfield","month":"January","year":2024,"productivity":170.0,"rainfall":2.6},{"estate":"Woodbriar","month":"January","year":2024,"productivity":156.0,"rainfall":2.6},{"estate":"Attikunna","month":"July","year":2024,"productivity":180.0,"rainfall":118.1},{"estate":"Carolyn","month":"July","year":2024,"productivity":168.0,"rainfall":112.8},{"estate":"Wentworth","month":"July","year":2024,"productivity":209.0,"rainfall":109.3},{"estate":"Rockwood","month":"July","year":2024,"productivity":94.0,"rainfall":94.7},{"estate":"Sussex","month":"July","year":2024,"productivity":123.0,"rainfall":99.6},{"estate":"Rousdonmullai","month":"July","year":2024,"productivity":168.0,"rainfall":174.3},{"estate":"Mayfield","month":"July","year":2024,"productivity":156.0,"rainfall":69.9},{"estate":"Woodbriar","month":"July","year":2024,"productivity":38.0,"rainfall":83.3},{"estate":"Attikunna","month":"March","year":2024,"productivity":271.0,"rainfall":0.0},{"estate":"Carolyn","month":"March","year":2024,"productivity":279.0,"rainfall":0.0},{"estate":"Rockwood","month":"March","year":2024,"productivity":179.0,"rainfall":0.0},{"estate":"Wentworth","month":"March","year":2024,"productivity":163.0,"rainfall":0.0},{"estate":"Rousdonmullai","month":"March","year":2024,"productivity":152.0,"rainfall":0.0},{"estate":"Sussex","month":"March","year":2024,"productivity":142.0,"rainfall":0.0},{"estate":"Mayfield","month":"March","year":2024,"productivity":138.0,"rainfall":0.0},{"estate":"Woodbriar","month":"March","year":2024,"productivity":78.0,"rainfall":0.0},{"estate":"Attikunna","month":"November","year":2024,"productivity":268.0,"rainfall":6.4},{"estate":"Carolyn","month":"November","year":2024,"productivity":223.0,"rainfall":5.7},{"estate":"Wentworth","month":"November","year":2024,"productivity":180.0,"rainfall":7.4},{"estate":"Rockwood","month":"November","year":2024,"productivity":199.0,"rainfall":2.6},{"estate":"Rousdonmullai","month":"November","year":2024,"productivity":263.0,"rainfall":3.1},{"estate":"Sussex","month":"November","year":2024,"productivity":190.0,"rainfall":2.9},{"estate":"Mayfield","month":"November","year":2024,"productivity":163.0,"rainfall":3.3},{"estate":"Woodbriar","month":"November","year":2024,"productivity":148.0,"rainfall":5.0},{"estate":"Attikunna","month":"February","year":2026,"productivity":196.0,"rainfall":3.1},{"estate":"Carolyn","month":"February","year":2026,"productivity":177.0,"rainfall":1.1},{"estate":"Rousdonmullai","month":"February","year":2026,"productivity":154.0,"rainfall":2.5},{"estate":"Sussex","month":"February","year":2026,"productivity":101.0,"rainfall":2.7},{"estate":"Rockwood","month":"February","year":2026,"productivity":101.0,"rainfall":3.2},{"estate":"Wentworth","month":"February","year":2026,"productivity":80.0,"rainfall":1.9},{"estate":"Woodbriar","month":"February","year":2026,"productivity":86.0,"rainfall":1.9},{"estate":"Mayfield","month":"February","year":2026,"productivity":66.0,"rainfall":1.3},{"estate":"Attikunna","month":"November","year":2025,"productivity":255.0,"rainfall":0.5},{"estate":"Carolyn","month":"November","year":2025,"productivity":265.0,"rainfall":0.1},{"estate":"Rousdonmullai","month":"November","year":2025,"productivity":222.0,"rainfall":0.9},{"estate":"Wentworth","month":"November","year":2025,"productivity":211.0,"rainfall":0.3},{"estate":"Mayfield","month":"November","year":2025,"productivity":200.0,"rainfall":0.3},{"estate":"Sussex","month":"November","year":2025,"productivity":178.0,"rainfall":1.1},{"estate":"Rockwood","month":"November","year":2025,"productivity":145.0,"rainfall":0.4},{"estate":"Woodbriar","month":"November","year":2025,"productivity":104.0,"rainfall":0.7},{"estate":"Attikunna","month":"August","year":2024,"productivity":240.0,"rainfall":51.5},{"estate":"Carolyn","month":"August","year":2024,"productivity":245.0,"rainfall":40.0},{"estate":"Wentworth","month":"August","year":2024,"productivity":213.0,"rainfall":32.8},{"estate":"Rockwood","month":"August","year":2024,"productivity":210.0,"rainfall":22.3},{"estate":"Sussex","month":"August","year":2024,"productivity":191.0,"rainfall":19.6},{"estate":"Rousdonmullai","month":"August","year":2024,"productivity":150.0,"rainfall":54.9},{"estate":"Mayfield","month":"August","year":2024,"productivity":135.0,"rainfall":10.1},{"estate":"Woodbriar","month":"August","year":2024,"productivity":128.0,"rainfall":18.3},{"estate":"Carolyn","month":"January","year":2026,"productivity":205.0,"rainfall":1.4},{"estate":"Attikunna","month":"January","year":2026,"productivity":193.0,"rainfall":2.2},{"estate":"Rousdonmullai","month":"January","year":2026,"productivity":153.0,"rainfall":3.2},{"estate":"Sussex","month":"January","year":2026,"productivity":128.0,"rainfall":0.8},{"estate":"Wentworth","month":"January","year":2026,"productivity":115.0,"rainfall":0.0},{"estate":"Rockwood","month":"January","year":2026,"productivity":102.0,"rainfall":1.8},{"estate":"Mayfield","month":"January","year":2026,"productivity":84.0,"rainfall":0.0},{"estate":"Woodbriar","month":"January","year":2026,"productivity":84.0,"rainfall":2.6},{"estate":"Attikunna","month":"August","year":2023,"productivity":312.0,"rainfall":9.1},{"estate":"Carolyn","month":"August","year":2023,"productivity":288.0,"rainfall":10.1},{"estate":"Rockwood","month":"August","year":2023,"productivity":320.0,"rainfall":11.7},{"estate":"Rousdonmullai","month":"August","year":2023,"productivity":230.0,"rainfall":15.8},{"estate":"Sussex","month":"August","year":2023,"productivity":256.0,"rainfall":12.6},{"estate":"Wentworth","month":"August","year":2023,"productivity":253.0,"rainfall":4.8},{"estate":"Mayfield","month":"August","year":2023,"productivity":206.0,"rainfall":11.4},{"estate":"Woodbriar","month":"August","year":2023,"productivity":221.0,"rainfall":12.4},{"estate":"Attikunna","month":"June","year":2023,"productivity":381.0,"rainfall":20.9},{"estate":"Carolyn","month":"June","year":2023,"productivity":291.0,"rainfall":28.5},{"estate":"Rousdonmullai","month":"June","year":2023,"productivity":305.0,"rainfall":41.0},{"estate":"Rockwood","month":"June","year":2023,"productivity":257.0,"rainfall":12.8},{"estate":"Sussex","month":"June","year":2023,"productivity":242.0,"rainfall":14.2},{"estate":"Wentworth","month":"June","year":2023,"productivity":236.0,"rainfall":19.6},{"estate":"Mayfield","month":"June","year":2023,"productivity":258.0,"rainfall":8.4},{"estate":"Woodbriar","month":"June","year":2023,"productivity":136.0,"rainfall":7.6},{"estate":"Attikunna","month":"December","year":2024,"productivity":294.0,"rainfall":9.8},{"estate":"Carolyn","month":"December","year":2024,"productivity":303.0,"rainfall":6.1},{"estate":"Wentworth","month":"December","year":2024,"productivity":192.0,"rainfall":7.9},{"estate":"Rockwood","month":"December","year":2024,"productivity":191.0,"rainfall":5.1},{"estate":"Rousdonmullai","month":"December","year":2024,"productivity":202.0,"rainfall":14.3},{"estate":"Sussex","month":"December","year":2024,"productivity":148.0,"rainfall":6.1},{"estate":"Mayfield","month":"December","year":2024,"productivity":165.0,"rainfall":5.3},{"estate":"Woodbriar","month":"December","year":2024,"productivity":98.0,"rainfall":4.3},{"estate":"Attikunna","month":"July","year":2025,"productivity":309.0,"rainfall":47.8},{"estate":"Carolyn","month":"July","year":2025,"productivity":304.0,"rainfall":49.6},{"estate":"Rousdonmullai","month":"July","year":2025,"productivity":199.0,"rainfall":110.1},{"estate":"Wentworth","month":"July","year":2025,"productivity":197.0,"rainfall":53.0},{"estate":"Mayfield","month":"July","year":2025,"productivity":212.0,"rainfall":31.8},{"estate":"Rockwood","month":"July","year":2025,"productivity":173.0,"rainfall":45.4},{"estate":"Sussex","month":"July","year":2025,"productivity":121.0,"rainfall":42.0},{"estate":"Woodbriar","month":"July","year":2025,"productivity":109.0,"rainfall":44.5},{"estate":"Attikunna","month":"September","year":2024,"productivity":183.0,"rainfall":21.3},{"estate":"Carolyn","month":"September","year":2024,"productivity":149.0,"rainfall":19.5},{"estate":"Wentworth","month":"September","year":2024,"productivity":153.0,"rainfall":12.0},{"estate":"Rockwood","month":"September","year":2024,"productivity":192.0,"rainfall":14.2},{"estate":"Sussex","month":"September","year":2024,"productivity":187.0,"rainfall":12.8},{"estate":"Rousdonmullai","month":"September","year":2024,"productivity":179.0,"rainfall":27.7},{"estate":"Mayfield","month":"September","year":2024,"productivity":200.0,"rainfall":5.5},{"estate":"Woodbriar","month":"September","year":2024,"productivity":149.0,"rainfall":13.4},{"estate":"Attikunna","month":"May","year":2025,"productivity":277.0,"rainfall":62.3},{"estate":"Carolyn","month":"May","year":2025,"productivity":241.0,"rainfall":66.4},{"estate":"Rousdonmullai","month":"May","year":2025,"productivity":131.0,"rainfall":97.6},{"estate":"Wentworth","month":"May","year":2025,"productivity":225.0,"rainfall":60.3},{"estate":"Mayfield","month":"May","year":2025,"productivity":245.0,"rainfall":44.0},{"estate":"Sussex","month":"May","year":2025,"productivity":148.0,"rainfall":48.8},{"estate":"Rockwood","month":"May","year":2025,"productivity":145.0,"rainfall":50.8},{"estate":"Woodbriar","month":"May","year":2025,"productivity":89.0,"rainfall":47.0},{"estate":"Attikunna","month":"April","year":2024,"productivity":176.0,"rainfall":0.7},{"estate":"Carolyn","month":"April","year":2024,"productivity":142.0,"rainfall":0.4},{"estate":"Rockwood","month":"April","year":2024,"productivity":91.0,"rainfall":1.4},{"estate":"Rousdonmullai","month":"April","year":2024,"productivity":103.0,"rainfall":0.0},{"estate":"Wentworth","month":"April","year":2024,"productivity":68.0,"rainfall":0.9},{"estate":"Sussex","month":"April","year":2024,"productivity":123.0,"rainfall":2.1},{"estate":"Mayfield","month":"April","year":2024,"productivity":59.0,"rainfall":0.5},{"estate":"Woodbriar","month":"April","year":2024,"productivity":38.0,"rainfall":1.0},{"estate":"Attikunna","month":"January","year":2025,"productivity":255.0,"rainfall":0.0},{"estate":"Rousdonmullai","month":"January","year":2025,"productivity":213.0,"rainfall":0.0},{"estate":"Carolyn","month":"January","year":2025,"productivity":212.0,"rainfall":0.0},{"estate":"Sussex","month":"January","year":2025,"productivity":183.0,"rainfall":0.0},{"estate":"Rockwood","month":"January","year":2025,"productivity":174.0,"rainfall":0.0},{"estate":"Wentworth","month":"January","year":2025,"productivity":151.0,"rainfall":0.0},{"estate":"Mayfield","month":"January","year":2025,"productivity":129.0,"rainfall":0.0},{"estate":"Woodbriar","month":"January","year":2025,"productivity":119.0,"rainfall":0.0},{"estate":"Attikunna","month":"June","year":2025,"productivity":257.0,"rainfall":57.3},{"estate":"Carolyn","month":"June","year":2025,"productivity":232.0,"rainfall":61.0},{"estate":"Rousdonmullai","month":"June","year":2025,"productivity":134.0,"rainfall":111.1},{"estate":"Wentworth","month":"June","year":2025,"productivity":145.0,"rainfall":62.4},{"estate":"Sussex","month":"June","year":2025,"productivity":184.0,"rainfall":40.5},{"estate":"Mayfield","month":"June","year":2025,"productivity":141.0,"rainfall":27.8},{"estate":"Rockwood","month":"June","year":2025,"productivity":161.0,"rainfall":40.3},{"estate":"Woodbriar","month":"June","year":2025,"productivity":88.0,"rainfall":41.1},{"estate":"Attikunna","month":"December","year":2023,"productivity":288.0,"rainfall":5.9},{"estate":"Rockwood","month":"December","year":2023,"productivity":208.0,"rainfall":2.8},{"estate":"Carolyn","month":"December","year":2023,"productivity":266.0,"rainfall":8.7},{"estate":"Sussex","month":"December","year":2023,"productivity":218.0,"rainfall":0.9},{"estate":"Rousdonmullai","month":"December","year":2023,"productivity":182.0,"rainfall":9.4},{"estate":"Wentworth","month":"December","year":2023,"productivity":263.0,"rainfall":3.2},{"estate":"Mayfield","month":"December","year":2023,"productivity":159.0,"rainfall":1.6},{"estate":"Woodbriar","month":"December","year":2023,"productivity":178.0,"rainfall":4.0},{"estate":"Attikunna","month":"September","year":2023,"productivity":279.0,"rainfall":82.5},{"estate":"Rockwood","month":"September","year":2023,"productivity":315.0,"rainfall":41.0},{"estate":"Carolyn","month":"September","year":2023,"productivity":224.0,"rainfall":72.3},{"estate":"Rousdonmullai","month":"September","year":2023,"productivity":230.0,"rainfall":112.6},{"estate":"Sussex","month":"September","year":2023,"productivity":312.0,"rainfall":37.7},{"estate":"Wentworth","month":"September","year":2023,"productivity":294.0,"rainfall":50.6},{"estate":"Mayfield","month":"September","year":2023,"productivity":212.0,"rainfall":22.9},{"estate":"Woodbriar","month":"September","year":2023,"productivity":183.0,"rainfall":29.9},{"estate":"Attikunna","month":"April","year":2023,"productivity":271.0,"rainfall":3.8},{"estate":"Carolyn","month":"April","year":2023,"productivity":209.0,"rainfall":2.9},{"estate":"Rousdonmullai","month":"April","year":2023,"productivity":217.0,"rainfall":5.4},{"estate":"Rockwood","month":"April","year":2023,"productivity":145.0,"rainfall":8.7},{"estate":"Sussex","month":"April","year":2023,"productivity":141.0,"rainfall":6.1},{"estate":"Wentworth","month":"April","year":2023,"productivity":100.0,"rainfall":1.7},{"estate":"Mayfield","month":"April","year":2023,"productivity":72.0,"rainfall":6.2},{"estate":"Woodbriar","month":"April","year":2023,"productivity":85.0,"rainfall":10.3},{"estate":"Attikunna","month":"October","year":2025,"productivity":321.0,"rainfall":23.9},{"estate":"Carolyn","month":"October","year":2025,"productivity":302.0,"rainfall":37.7},{"estate":"Rousdonmullai","month":"October","year":2025,"productivity":179.0,"rainfall":46.9},{"estate":"Wentworth","month":"October","year":2025,"productivity":169.0,"rainfall":30.0},{"estate":"Mayfield","month":"October","year":2025,"productivity":143.0,"rainfall":13.9},{"estate":"Sussex","month":"October","year":2025,"productivity":146.0,"rainfall":19.9},{"estate":"Rockwood","month":"October","year":2025,"productivity":142.0,"rainfall":21.1},{"estate":"Woodbriar","month":"October","year":2025,"productivity":68.0,"rainfall":21.4},{"estate":"Attikunna","month":"June","year":2024,"productivity":333.0,"rainfall":131.9},{"estate":"Carolyn","month":"June","year":2024,"productivity":270.0,"rainfall":118.8},{"estate":"Rockwood","month":"June","year":2024,"productivity":262.0,"rainfall":89.1},{"estate":"Wentworth","month":"June","year":2024,"productivity":270.0,"rainfall":67.5},{"estate":"Sussex","month":"June","year":2024,"productivity":258.0,"rainfall":86.1},{"estate":"Rousdonmullai","month":"June","year":2024,"productivity":189.0,"rainfall":120.9},{"estate":"Mayfield","month":"June","year":2024,"productivity":210.0,"rainfall":57.5},{"estate":"Woodbriar","month":"June","year":2024,"productivity":123.0,"rainfall":80.6},{"estate":"Attikunna","month":"October","year":2023,"productivity":285.0,"rainfall":10.9},{"estate":"Rockwood","month":"October","year":2023,"productivity":265.0,"rainfall":11.1},{"estate":"Carolyn","month":"October","year":2023,"productivity":228.0,"rainfall":13.7},{"estate":"Rousdonmullai","month":"October","year":2023,"productivity":166.0,"rainfall":11.8},{"estate":"Sussex","month":"October","year":2023,"productivity":237.0,"rainfall":23.5},{"estate":"Wentworth","month":"October","year":2023,"productivity":195.0,"rainfall":16.4},{"estate":"Mayfield","month":"October","year":2023,"productivity":170.0,"rainfall":16.1},{"estate":"Woodbriar","month":"October","year":2023,"productivity":201.0,"rainfall":12.4},{"estate":"Attikunna","month":"April","year":2025,"productivity":324.0,"rainfall":6.7},{"estate":"Carolyn","month":"April","year":2025,"productivity":310.0,"rainfall":4.7},{"estate":"Rousdonmullai","month":"April","year":2025,"productivity":235.0,"rainfall":3.9},{"estate":"Wentworth","month":"April","year":2025,"productivity":215.0,"rainfall":9.2},{"estate":"Sussex","month":"April","year":2025,"productivity":159.0,"rainfall":11.9},{"estate":"Rockwood","month":"April","year":2025,"productivity":147.0,"rainfall":7.8},{"estate":"Mayfield","month":"April","year":2025,"productivity":226.0,"rainfall":12.1},{"estate":"Woodbriar","month":"April","year":2025,"productivity":84.0,"rainfall":10.5},{"estate":"Attikunna","month":"February","year":2024,"productivity":228.0,"rainfall":0.0},{"estate":"Carolyn","month":"February","year":2024,"productivity":219.0,"rainfall":0.0},{"estate":"Wentworth","month":"February","year":2024,"productivity":175.0,"rainfall":0.0},{"estate":"Rockwood","month":"February","year":2024,"productivity":173.0,"rainfall":0.0},{"estate":"Rousdonmullai","month":"February","year":2024,"productivity":164.0,"rainfall":0.0},{"estate":"Sussex","month":"February","year":2024,"productivity":152.0,"rainfall":0.0},{"estate":"Mayfield","month":"February","year":2024,"productivity":111.0,"rainfall":0.0},{"estate":"Woodbriar","month":"February","year":2024,"productivity":93.0,"rainfall":0.0},{"estate":"Attikunna","month":"September","year":2025,"productivity":303.0,"rainfall":31.3},{"estate":"Carolyn","month":"September","year":2025,"productivity":289.0,"rainfall":39.2},{"estate":"Rousdonmullai","month":"September","year":2025,"productivity":221.0,"rainfall":96.2},{"estate":"Wentworth","month":"September","year":2025,"productivity":234.0,"rainfall":19.1},{"estate":"Mayfield","month":"September","year":2025,"productivity":208.0,"rainfall":12.5},{"estate":"Sussex","month":"September","year":2025,"productivity":152.0,"rainfall":19.1},{"estate":"Rockwood","month":"September","year":2025,"productivity":200.0,"rainfall":23.9},{"estate":"Woodbriar","month":"September","year":2025,"productivity":134.0,"rainfall":22.7},{"estate":"Attikunna","month":"February","year":2025,"productivity":196.0,"rainfall":0.0},{"estate":"Carolyn","month":"February","year":2025,"productivity":209.0,"rainfall":0.0},{"estate":"Rousdonmullai","month":"February","year":2025,"productivity":169.0,"rainfall":0.0},{"estate":"Rockwood","month":"February","year":2025,"productivity":124.0,"rainfall":0.0},{"estate":"Sussex","month":"February","year":2025,"productivity":104.0,"rainfall":0.0},{"estate":"Wentworth","month":"February","year":2025,"productivity":104.0,"rainfall":0.0},{"estate":"Mayfield","month":"February","year":2025,"productivity":82.0,"rainfall":0.0},{"estate":"Woodbriar","month":"February","year":2025,"productivity":89.0,"rainfall":0.0},{"estate":"Attikunna","month":"July","year":2023,"productivity":312.0,"rainfall":73.3},{"estate":"Carolyn","month":"July","year":2023,"productivity":258.0,"rainfall":72.1},{"estate":"Rockwood","month":"July","year":2023,"productivity":220.0,"rainfall":60.9},{"estate":"Rousdonmullai","month":"July","year":2023,"productivity":193.0,"rainfall":119.6},{"estate":"Sussex","month":"July","year":2023,"productivity":257.0,"rainfall":52.6},{"estate":"Wentworth","month":"July","year":2023,"productivity":233.0,"rainfall":78.3},{"estate":"Mayfield","month":"July","year":2023,"productivity":170.0,"rainfall":37.3},{"estate":"Woodbriar","month":"July","year":2023,"productivity":108.0,"rainfall":52.7}];
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const YEARS = [2023, 2024, 2025, 2026];
+const ESTATES = ['Attikunna','Carolyn','Rousdonmullai','Rockwood','Wentworth','Sussex','Mayfield','Woodbriar'];
+const YEAR_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444'];
+const ESTATE_COLORS = {
+  'Attikunna':'#10b981','Carolyn':'#3b82f6','Rousdonmullai':'#8b5cf6',
+  'Rockwood':'#06b6d4','Wentworth':'#f59e0b','Sussex':'#ec4899',
+  'Mayfield':'#ef4444','Woodbriar':'#6b7280'
+};
+
+// State
+let state = { month: 'January', estate: 'All', view: 'comparison' };
+let chartInstance = null;
+
+// Helpers
+function getRainCategory(r) {
+  if (r === null || r === undefined) return { label: 'N/A', cls: 'rain-na' };
+  if (r < 5) return { label: 'Low', cls: 'rain-low' };
+  if (r < 20) return { label: 'Moderate', cls: 'rain-moderate' };
+  if (r < 40) return { label: 'High', cls: 'rain-high' };
+  return { label: 'Very High', cls: 'rain-very-high' };
+}
+
+function calcCorrelation(points) {
+  if (points.length < 3) return null;
+  const n = points.length;
+  let sx=0, sy=0, sxy=0, sx2=0, sy2=0;
+  points.forEach(p => {
+    sx += p.x; sy += p.y;
+    sxy += p.x * p.y;
+    sx2 += p.x * p.x; sy2 += p.y * p.y;
+  });
+  const num = n*sxy - sx*sy;
+  const den = Math.sqrt((n*sx2 - sx*sx) * (n*sy2 - sy*sy));
+  return den === 0 ? 0 : num / den;
+}
+
+// Populate dropdowns
+function initDropdowns() {
+  const m = document.getElementById('monthSelect');
+  MONTHS.forEach(month => {
+    const opt = document.createElement('option');
+    opt.value = month; opt.textContent = month;
+    m.appendChild(opt);
+  });
+  const e = document.getElementById('estateSelect');
+  const allOpt = document.createElement('option');
+  allOpt.value = 'All'; allOpt.textContent = 'All Estates';
+  e.appendChild(allOpt);
+  ESTATES.forEach(est => {
+    const opt = document.createElement('option');
+    opt.value = est; opt.textContent = est;
+    e.appendChild(opt);
+  });
+
+  m.addEventListener('change', ev => { state.month = ev.target.value; render(); });
+  e.addEventListener('change', ev => { state.estate = ev.target.value; render(); });
+  document.getElementById('viewSelect').addEventListener('change', ev => { state.view = ev.target.value; render(); });
+}
+
+// Render insights cards
+function renderInsights() {
+  const monthData = ALL_DATA.filter(d => d.month === state.month);
+  const wData = monthData.filter(d => d.estate === 'Wentworth').sort((a,b) => a.year - b.year);
+  let trend = 'N/A', trendClass = 'gray';
+  if (wData.length >= 2) {
+    const change = ((wData[wData.length-1].productivity - wData[0].productivity) / wData[0].productivity * 100);
+    trend = (change >= 0 ? '+' : '') + change.toFixed(1) + '%';
+    trendClass = change < 0 ? 'red' : 'green';
+  }
+  const yearAvgs = YEARS.map(y => {
+    const yd = monthData.filter(d => d.year === y);
+    return { year: y, avg: yd.length ? yd.reduce((s,d) => s+d.productivity, 0)/yd.length : 0 };
+  }).filter(y => y.avg > 0).sort((a,b) => b.avg - a.avg);
+  const bestYear = yearAvgs[0];
+
+  // Correlation across all estates for this month
+  const corrPoints = monthData.filter(d => d.rainfall !== null).map(d => ({ x: d.rainfall, y: d.productivity }));
+  const corr = calcCorrelation(corrPoints);
+  let corrLabel = 'N/A', corrClass = 'gray', corrStrength = '';
+  if (corr !== null) {
+    corrLabel = corr.toFixed(3);
+    const a = Math.abs(corr);
+    if (a > 0.7) { corrStrength = 'Strong'; corrClass = 'yellow'; }
+    else if (a > 0.4) { corrStrength = 'Moderate'; corrClass = 'yellow'; }
+    else { corrStrength = 'Weak'; corrClass = 'blue'; }
+  }
+
+  document.getElementById('insightsContainer').innerHTML =
+    '<div class="insight"><div class="insight-label">Selected Month</div>' +
+    '<div class="insight-value">' + state.month + '</div>' +
+    '<div class="insight-detail">' + monthData.length + ' records</div></div>' +
+    '<div class="insight"><div class="insight-label">Best Year (' + state.month + ')</div>' +
+    '<div class="insight-value green">' + (bestYear ? bestYear.year : 'N/A') + '</div>' +
+    '<div class="insight-detail">' + (bestYear ? bestYear.avg.toFixed(1) + ' MT/ha avg' : '') + '</div></div>' +
+    '<div class="insight"><div class="insight-label">Wentworth Trend</div>' +
+    '<div class="insight-value ' + trendClass + '">' + trend + '</div>' +
+    '<div class="insight-detail">2023 → 2026 change</div></div>' +
+    '<div class="insight"><div class="insight-label">Rain Correlation</div>' +
+    '<div class="insight-value ' + corrClass + '">' + corrLabel + '</div>' +
+    '<div class="insight-detail">' + corrStrength + '</div></div>';
+}
+
+// Render comparison table
+function renderTable() {
+  const monthData = ALL_DATA.filter(d => d.month === state.month);
+  const estatesToShow = state.estate === 'All' ? ESTATES : [state.estate];
+
+  const rows = estatesToShow.map(est => {
+    const cells = YEARS.map(y => {
+      const rec = monthData.find(d => d.estate === est && d.year === y);
+      return { year: y, prod: rec ? rec.productivity : null, rain: rec ? rec.rainfall : null };
+    });
+    const valid = cells.filter(c => c.prod !== null);
+    const avg = valid.length ? valid.reduce((s,c) => s+c.prod, 0)/valid.length : 0;
+    return { estate: est, cells, avg };
+  }).sort((a, b) => b.avg - a.avg);
+
+  document.getElementById('tableTitle').textContent = state.month + ' Performance Comparison';
+
+  let html = '<table><thead><tr><th>Estate</th>';
+  YEARS.forEach(y => html += '<th class="center">' + y + '</th>');
+  html += '</tr></thead><tbody>';
+
+  rows.forEach(row => {
+    const wClass = row.estate === 'Wentworth' ? 'wentworth' : '';
+    html += '<tr><td class="estate-col"><span class="' + wClass + '">' + row.estate + '</span></td>';
+    row.cells.forEach(c => {
+      if (c.prod !== null) {
+        const cat = getRainCategory(c.rain);
+        html += '<td><div class="prod-val">' + c.prod + '</div>';
+        if (c.rain !== null) {
+          html += '<div class="rain-val ' + cat.cls + '">' + c.rain.toFixed(1) + ' cm</div>';
+        }
+        html += '</td>';
+      } else {
+        html += '<td><span class="no-data">—</span></td>';
+      }
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('tableContainer').innerHTML = html;
+}
+
+// Render chart
+function renderChart() {
+  if (chartInstance) {
+    chartInstance.destroy();
+    chartInstance = null;
+  }
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  const titleEl = document.getElementById('chartTitle');
+  const corrInfoEl = document.getElementById('corrInfo');
+  corrInfoEl.innerHTML = '';
+
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = '#334155';
+
+  if (state.view === 'comparison') {
+    titleEl.textContent = state.month + ' Productivity by Year';
+    const monthData = ALL_DATA.filter(d => d.month === state.month);
+    const estatesToShow = state.estate === 'All' ? ESTATES : [state.estate];
+    const labels = estatesToShow;
+    const datasets = YEARS.map((y, i) => ({
+      label: String(y),
+      data: estatesToShow.map(est => {
+        const rec = monthData.find(d => d.estate === est && d.year === y);
+        return rec ? rec.productivity : null;
+      }),
+      backgroundColor: YEAR_COLORS[i],
+      borderRadius: 4
+    }));
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#e2e8f0' } },
+          tooltip: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1 }
+        },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#33415544' } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#33415544' }, title: { display: true, text: 'MT/ha', color: '#94a3b8' } }
+        }
+      }
+    });
+  } else if (state.view === 'trends') {
+    const focusEstate = state.estate === 'All' ? 'Wentworth' : state.estate;
+    titleEl.textContent = focusEstate + ' - Year Trends Across All Months';
+    const datasets = YEARS.map((y, i) => ({
+      label: String(y),
+      data: MONTHS.map(month => {
+        const rec = ALL_DATA.find(d => d.estate === focusEstate && d.month === month && d.year === y);
+        return rec ? rec.productivity : null;
+      }),
+      borderColor: YEAR_COLORS[i],
+      backgroundColor: YEAR_COLORS[i] + '33',
+      tension: 0.2,
+      spanGaps: true,
+      pointRadius: 4
+    }));
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: { labels: MONTHS.map(m => m.slice(0,3)), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#e2e8f0' } },
+          tooltip: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1 }
+        },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#33415544' } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#33415544' }, title: { display: true, text: 'MT/ha', color: '#94a3b8' } }
+        }
+      }
+    });
+  } else {
+    titleEl.textContent = 'Rainfall vs Productivity (' + state.month + ')';
+    const monthData = ALL_DATA.filter(d => d.month === state.month && d.rainfall !== null);
+    const filtered = state.estate === 'All' ? monthData : monthData.filter(d => d.estate === state.estate);
+
+    // Group by estate so each gets its own color
+    const byEstate = {};
+    filtered.forEach(d => {
+      if (!byEstate[d.estate]) byEstate[d.estate] = [];
+      byEstate[d.estate].push({ x: d.rainfall, y: d.productivity, year: d.year, estate: d.estate });
+    });
+
+    const datasets = Object.keys(byEstate).map(est => ({
+      label: est,
+      data: byEstate[est],
+      backgroundColor: ESTATE_COLORS[est] || '#8b5cf6',
+      pointRadius: 6,
+      pointHoverRadius: 8
+    }));
+
+    chartInstance = new Chart(ctx, {
+      type: 'scatter',
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#e2e8f0' } },
+          tooltip: {
+            backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1,
+            callbacks: {
+              label: function(ctx) {
+                const d = ctx.raw;
+                return d.estate + ' ' + d.year + ': ' + d.y + ' MT/ha @ ' + d.x.toFixed(1) + ' cm';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { color: '#33415544' }, title: { display: true, text: 'Rainfall (cm)', color: '#94a3b8' } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#33415544' }, title: { display: true, text: 'Productivity (MT/ha)', color: '#94a3b8' } }
+        }
+      }
+    });
+
+    const allPoints = filtered.map(d => ({ x: d.rainfall, y: d.productivity }));
+    const corr = calcCorrelation(allPoints);
+    if (corr !== null) {
+      const a = Math.abs(corr);
+      const strength = a > 0.7 ? 'Strong' : a > 0.4 ? 'Moderate' : 'Weak';
+      const dir = corr > 0 ? 'positive' : 'negative';
+      const cls = a > 0.4 ? 'yellow' : 'blue';
+      corrInfoEl.innerHTML = '<div class="corr-info"><span class="gray">Correlation: </span><strong class="' + cls + '">' + corr.toFixed(3) + '</strong> <span class="gray">(' + strength + ' ' + dir + ', n=' + allPoints.length + ')</span></div>';
+    }
+  }
+}
+
+function render() {
+  renderInsights();
+  renderTable();
+  renderChart();
+}
+
+// Init
+initDropdowns();
+document.getElementById('footer').textContent = 'Data: ' + ALL_DATA.length + ' records across ' + ESTATES.length + ' estates, ' + YEARS.length + ' years (2023-2026)';
+render();
+</script>
+</body>
+</html>
